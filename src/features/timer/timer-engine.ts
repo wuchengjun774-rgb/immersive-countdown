@@ -5,6 +5,8 @@ export function createTimer(config: { durationMs: number }, now: number): TimerS
 }
 
 export function remainingMs(state: TimerState, now: number): number {
+  if (state.status === "completed") return 0;
+  if (state.status === "idle") return state.durationMs;
   if (state.status === "paused") return state.remainingOnPauseMs ?? 0;
   if (state.endsAt === null) return state.durationMs;
   return Math.max(0, state.endsAt - now);
@@ -15,6 +17,7 @@ export function pauseTimer(state: TimerState, now: number): TimerState {
 }
 
 export function resumeTimer(state: TimerState, now: number): TimerState {
+  if (state.status !== "paused") return state;
   const remaining = state.remainingOnPauseMs ?? state.durationMs;
   return { ...state, status: "running", endsAt: now + remaining, remainingOnPauseMs: null };
 }
