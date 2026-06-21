@@ -9,6 +9,8 @@
 !.yarn/releases
 !.yarn/versions
 /coverage
+/test-results/
+/playwright-report/
 /.next/
 /out/
 /build
