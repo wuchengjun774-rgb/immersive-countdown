@@ -14,5 +14,11 @@ Implemented the focus/break mode state machine, local timer persistence, and the
 
 ## Verification
 
-- Focused: `pnpm test src/features/timer/mode-machine.test.ts src/features/timer/use-countdown.test.tsx` — 2 files, 8 tests passed.
-- Full: `pnpm test` — 4 files, 13 tests passed.
+- TDD RED: focused tests failed because `mode-machine`, `local-timer-store`, and `use-countdown` did not exist.
+- TDD GREEN: `pnpm test src/features/timer/mode-machine.test.ts src/features/timer/use-countdown.test.tsx` — 2 files, 8 tests passed.
+- Final focused: `pnpm test src/features/timer` — 3 files, 12 tests passed.
+- Final full: `pnpm test` — 4 files, 13 tests passed.
+
+## Commit
+
+- Task 3 implementation SHA: `8a68999b3840fafba6d4ed823824f125b02ffefb`
