@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-import { createTimer, remainingMs } from "./timer-engine";
+import { createTimer, pauseTimer, remainingMs, resumeTimer } from "./timer-engine";
 import { loadTimerState, saveTimerState, type StoredCountdown } from "./local-timer-store";
 import { advanceFocusPhase, defaultFocusConfig } from "./mode-machine";
 
 export type CountdownOptions = { mode: "focus" } | { mode: "leisure"; durationMs: number };
 
 function initialCountdown(options: CountdownOptions): StoredCountdown {
-  const restored = loadTimerState(window.localStorage, Date.now());
+  const restored =
+    typeof window === "undefined" ? null : loadTimerState(window.localStorage, Date.now());
   if (restored?.mode === options.mode) return restored;
 
   if (options.mode === "leisure") {
@@ -70,10 +71,24 @@ export function useCountdown(options: CountdownOptions = { mode: "focus" }) {
     });
   };
 
+  const pause = () => {
+    const pausedAt = Date.now();
+    setNow(pausedAt);
+    setState((current) => ({ ...current, timer: pauseTimer(current.timer, pausedAt) }));
+  };
+
+  const resume = () => {
+    const resumedAt = Date.now();
+    setNow(resumedAt);
+    setState((current) => ({ ...current, timer: resumeTimer(current.timer, resumedAt) }));
+  };
+
   return {
     ...state,
     remainingMs: remainingMs(state.timer, now),
     startFocus,
+    pause,
+    resume,
     completePhase,
   };
 }
