@@ -22,3 +22,17 @@ Implemented the focus/break mode state machine, local timer persistence, and the
 ## Commit
 
 - Task 3 implementation SHA: `8a68999b3840fafba6d4ed823824f125b02ffefb`
+
+## Review Fixes
+
+- Added `useCountdown({ mode: "focus" })` and `useCountdown({ mode: "leisure", durationMs })`, retaining no-argument focus compatibility.
+- Leisure timers use their custom duration, persist and restore as leisure, and do not enter the focus/break loop.
+- Completing the fourth break now leaves the session done with a completed timer and does not start round five.
+- Added runtime validation for persisted timer, focus-session, and mode shapes; malformed or invalid data returns `null`.
+
+## Review TDD Evidence
+
+- RED command: `pnpm test src/features/timer`
+- RED output: 2 files failed, 5 tests failed, 16 passed. Failures covered leisure initialization, final-break completion, and three invalid persisted shapes.
+- GREEN command: `pnpm test src/features/timer`
+- GREEN output: 4 files passed, 21 tests passed.

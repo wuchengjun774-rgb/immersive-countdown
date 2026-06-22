@@ -6,9 +6,18 @@ import { createTimer, remainingMs } from "./timer-engine";
 import { loadTimerState, saveTimerState, type StoredCountdown } from "./local-timer-store";
 import { advanceFocusPhase, defaultFocusConfig } from "./mode-machine";
 
-function initialCountdown(): StoredCountdown {
+export type CountdownOptions = { mode: "focus" } | { mode: "leisure"; durationMs: number };
+
+function initialCountdown(options: CountdownOptions): StoredCountdown {
   const restored = loadTimerState(window.localStorage, Date.now());
-  if (restored) return restored;
+  if (restored?.mode === options.mode) return restored;
+
+  if (options.mode === "leisure") {
+    return {
+      mode: "leisure",
+      timer: { status: "idle", durationMs: options.durationMs, endsAt: null, remainingOnPauseMs: null },
+    };
+  }
 
   return {
     mode: "focus",
@@ -22,8 +31,8 @@ function initialCountdown(): StoredCountdown {
   };
 }
 
-export function useCountdown() {
-  const [state, setState] = useState<StoredCountdown>(initialCountdown);
+export function useCountdown(options: CountdownOptions = { mode: "focus" }) {
+  const [state, setState] = useState<StoredCountdown>(() => initialCountdown(options));
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -45,7 +54,17 @@ export function useCountdown() {
     const startedAt = Date.now();
     setNow(startedAt);
     setState((current) => {
+      if (current.mode === "leisure") {
+        return { ...current, timer: { ...current.timer, status: "completed", endsAt: null, remainingOnPauseMs: null } };
+      }
       const focusSession = advanceFocusPhase(current.focusSession);
+      if (focusSession.done) {
+        return {
+          ...current,
+          focusSession,
+          timer: { ...current.timer, status: "completed", endsAt: null, remainingOnPauseMs: null },
+        };
+      }
       const durationMs = focusSession.phase === "focus" ? defaultFocusConfig.focusMs : defaultFocusConfig.breakMs;
       return { ...current, focusSession, timer: createTimer({ durationMs }, startedAt) };
     });

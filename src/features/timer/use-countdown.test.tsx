@@ -81,4 +81,53 @@ describe("useCountdown", () => {
     expect(result.current.remainingMs).toBe(0);
     expect(result.current.focusSession).toEqual({ phase: "break", round: 4, rounds: 4, done: false });
   });
+
+  test("uses a custom duration in leisure mode without a focus session", () => {
+    const { result } = renderHook(() => useCountdown({ mode: "leisure", durationMs: 90_000 }));
+
+    expect(result.current.mode).toBe("leisure");
+    expect(result.current.focusSession).toBeUndefined();
+    expect(result.current.remainingMs).toBe(90_000);
+
+    act(() => result.current.startFocus());
+
+    expect(result.current.timer.status).toBe("running");
+    expect(result.current.timer.durationMs).toBe(90_000);
+  });
+
+  test("restores a persisted leisure timer", () => {
+    window.localStorage.setItem(
+      TIMER_STORAGE_KEY,
+      JSON.stringify({
+        mode: "leisure",
+        timer: { status: "running", durationMs: 120_000, endsAt: 120_000, remainingOnPauseMs: null },
+      }),
+    );
+    vi.setSystemTime(30_000);
+
+    const { result } = renderHook(() => useCountdown({ mode: "leisure", durationMs: 60_000 }));
+
+    expect(result.current.mode).toBe("leisure");
+    expect(result.current.remainingMs).toBe(90_000);
+    expect(result.current.focusSession).toBeUndefined();
+  });
+
+  test("completes after the final break without starting a fifth round", () => {
+    window.localStorage.setItem(
+      TIMER_STORAGE_KEY,
+      JSON.stringify({
+        mode: "focus",
+        focusSession: { phase: "break", round: 4, rounds: 4, done: false },
+        timer: { status: "running", durationMs: 300_000, endsAt: 300_000, remainingOnPauseMs: null },
+      }),
+    );
+    const { result } = renderHook(() => useCountdown({ mode: "focus" }));
+
+    act(() => result.current.completePhase());
+
+    expect(result.current.focusSession).toEqual({ phase: "focus", round: 5, rounds: 4, done: true });
+    expect(result.current.timer.status).toBe("completed");
+    expect(result.current.timer.endsAt).toBeNull();
+    expect(result.current.remainingMs).toBe(0);
+  });
 });
