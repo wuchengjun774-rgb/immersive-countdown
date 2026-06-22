@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented the immersive timer home screen with `AppShell`, `OceanBackground`, `TimerFace`, and the page integration, including leisure mode, start/pause/resume controls, a dynamic background toggle, reduced-motion fallback, and video error fallback.
+Implemented the immersive timer home screen with `AppShell`, `OceanBackground`, `TimerFace`, and the page integration, including leisure mode, start/pause/resume controls, a dynamic background toggle, reduced-motion fallback, video error fallback, and the follow-up accessibility and compatibility fixes from review.
 
 ## Changes
 
@@ -14,14 +14,26 @@ Implemented the immersive timer home screen with `AppShell`, `OceanBackground`, 
 - Wired the home page to render the full shell and timer experience.
 - Added focused tests for app shell toggling, page rendering, server prerender safety, and timer interactions.
 - Took over the existing `public/backgrounds/morning-ocean.png` and `public/backgrounds/morning-ocean.webp` assets.
+- Follow-up review fixes:
+  - `OceanBackground` now supports both `addEventListener`/`removeEventListener` and legacy Safari `addListener`/`removeListener`.
+  - `TimerFace` tabs now use roving `tabIndex`, ArrowLeft/ArrowRight plus Home/End keyboard switching, focus movement, and `aria-controls`/`aria-labelledby` tab-to-panel wiring.
+  - Added regression tests for legacy `matchMedia` listeners and keyboard-accessible tab behavior.
 
 ## Verification
 
-- TDD RED: `pnpm test src/components/app-shell.test.tsx src/app/page.test.tsx src/app/page.server.test.tsx` failed because `page.tsx` imports did not resolve under Vitest.
-- TDD GREEN focused: `pnpm test src/components/app-shell.test.tsx src/components/ocean-background.test.tsx src/app/page.test.tsx src/app/page.server.test.tsx src/features/timer/timer-face.test.tsx` — 5 files, 10 tests passed.
-- Final full: `pnpm test` — 9 files, 31 tests passed.
-- Final lint: `pnpm lint` — passed.
-- Final build: `pnpm build` — passed.
+- Initial TDD RED: `pnpm test src/components/app-shell.test.tsx src/app/page.test.tsx src/app/page.server.test.tsx` failed because `page.tsx` imports did not resolve under Vitest.
+- Initial TDD GREEN focused: `pnpm test src/components/app-shell.test.tsx src/components/ocean-background.test.tsx src/app/page.test.tsx src/app/page.server.test.tsx src/features/timer/timer-face.test.tsx` — 5 files, 10 tests passed.
+- Initial final full: `pnpm test` — 9 files, 31 tests passed.
+- Initial final lint: `pnpm lint` — passed.
+- Initial final build: `pnpm build` — passed.
+- Review-fix TDD RED: `pnpm test src/components/ocean-background.test.tsx src/features/timer/timer-face.test.tsx` failed with 3 expected failures:
+  - `mediaQuery.addEventListener is not a function` on the legacy Safari listener path.
+  - Tabs were missing roving `tabIndex`.
+  - No `tabpanel`/ARIA linkage existed for the mode tabs.
+- Review-fix TDD GREEN focused: `pnpm test src/components/ocean-background.test.tsx src/features/timer/timer-face.test.tsx` — 2 files, 9 tests passed.
+- Review-fix final full: `pnpm test` — 9 files, 34 tests passed.
+- Review-fix final lint: `pnpm lint` — passed.
+- Review-fix final build: `pnpm build` — passed.
 
 ## Concerns
 

@@ -20,13 +20,22 @@ export function OceanBackground({ motionEnabled }: { motionEnabled: boolean }) {
     }
 
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updatePreference = (event?: MediaQueryListEvent) =>
+    const updatePreference = (event?: MediaQueryListEvent | MediaQueryList) =>
       setPrefersReducedMotion(event ? event.matches : mediaQuery.matches);
 
     updatePreference();
-    mediaQuery.addEventListener("change", updatePreference);
 
-    return () => mediaQuery.removeEventListener("change", updatePreference);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updatePreference);
+
+      return () => mediaQuery.removeEventListener("change", updatePreference);
+    }
+
+    if (typeof mediaQuery.addListener === "function") {
+      mediaQuery.addListener(updatePreference);
+
+      return () => mediaQuery.removeListener(updatePreference);
+    }
   }, []);
 
   return (

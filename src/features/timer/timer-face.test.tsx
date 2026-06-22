@@ -44,3 +44,31 @@ test("starts, pauses, and resumes the countdown", () => {
 
   expect(screen.getByRole("button", { name: "暂停" })).toBeTruthy();
 });
+
+test("supports keyboard navigation and roving focus for tabs", () => {
+  render(<TimerFace />);
+
+  const focusTab = screen.getByRole("tab", { name: "专注模式" });
+  const leisureTab = screen.getByRole("tab", { name: "休闲模式" });
+
+  expect(focusTab.getAttribute("tabindex")).toBe("0");
+  expect(leisureTab.getAttribute("tabindex")).toBe("-1");
+
+  focusTab.focus();
+  fireEvent.keyDown(focusTab, { key: "ArrowRight" });
+
+  expect(document.activeElement).toBe(leisureTab);
+  expect(leisureTab.getAttribute("aria-selected")).toBe("true");
+  expect(leisureTab.getAttribute("tabindex")).toBe("0");
+  expect(focusTab.getAttribute("tabindex")).toBe("-1");
+});
+
+test("links each tab to its tabpanel", () => {
+  render(<TimerFace />);
+
+  const focusTab = screen.getByRole("tab", { name: "专注模式" });
+  const panel = screen.getByRole("tabpanel");
+
+  expect(focusTab.getAttribute("aria-controls")).toBe(panel.getAttribute("id"));
+  expect(panel.getAttribute("aria-labelledby")).toBe(focusTab.getAttribute("id"));
+});

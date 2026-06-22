@@ -9,11 +9,30 @@ afterEach(() => {
 });
 
 function setReducedMotion(matches: boolean) {
-  vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
-    matches,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }));
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({
+      matches,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  );
+}
+
+function setLegacyReducedMotion(matches: boolean) {
+  const addListener = vi.fn();
+  const removeListener = vi.fn();
+
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({
+      matches,
+      addListener,
+      removeListener,
+    }),
+  );
+
+  return { addListener, removeListener };
 }
 
 test("does not render video when motion is disabled", () => {
@@ -39,4 +58,15 @@ test("falls back to the static background after a video error", () => {
 
   expect(screen.queryByTestId("ocean-video")).toBeNull();
   expect(screen.getByTestId("ocean-background").style.backgroundImage).toContain("morning-ocean.webp");
+});
+
+test("supports legacy safari matchMedia listeners", () => {
+  const { addListener, removeListener } = setLegacyReducedMotion(false);
+  const { unmount } = render(<OceanBackground motionEnabled />);
+
+  expect(addListener).toHaveBeenCalledTimes(1);
+
+  unmount();
+
+  expect(removeListener).toHaveBeenCalledTimes(1);
 });
