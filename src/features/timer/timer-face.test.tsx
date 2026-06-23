@@ -63,6 +63,49 @@ test("supports keyboard navigation and roving focus for tabs", () => {
   expect(focusTab.getAttribute("tabindex")).toBe("-1");
 });
 
+test("supports reverse and vertical arrow navigation for tabs", () => {
+  render(<TimerFace />);
+
+  const [focusTab, leisureTab] = screen.getAllByRole("tab");
+
+  focusTab.focus();
+  fireEvent.keyDown(focusTab, { key: "ArrowDown" });
+
+  expect(document.activeElement).toBe(leisureTab);
+  expect(leisureTab.getAttribute("aria-selected")).toBe("true");
+
+  fireEvent.keyDown(leisureTab, { key: "ArrowLeft" });
+
+  expect(document.activeElement).toBe(focusTab);
+  expect(focusTab.getAttribute("aria-selected")).toBe("true");
+
+  fireEvent.keyDown(focusTab, { key: "ArrowUp" });
+
+  expect(document.activeElement).toBe(leisureTab);
+  expect(leisureTab.getAttribute("aria-selected")).toBe("true");
+});
+
+test("supports Home and End keyboard shortcuts for tabs", () => {
+  render(<TimerFace />);
+
+  const [focusTab, leisureTab] = screen.getAllByRole("tab");
+
+  leisureTab.focus();
+  fireEvent.keyDown(leisureTab, { key: "Home" });
+
+  expect(document.activeElement).toBe(focusTab);
+  expect(focusTab.getAttribute("aria-selected")).toBe("true");
+  expect(focusTab.getAttribute("tabindex")).toBe("0");
+  expect(leisureTab.getAttribute("tabindex")).toBe("-1");
+
+  fireEvent.keyDown(focusTab, { key: "End" });
+
+  expect(document.activeElement).toBe(leisureTab);
+  expect(leisureTab.getAttribute("aria-selected")).toBe("true");
+  expect(leisureTab.getAttribute("tabindex")).toBe("0");
+  expect(focusTab.getAttribute("tabindex")).toBe("-1");
+});
+
 test("links each tab to its tabpanel", () => {
   render(<TimerFace />);
 
