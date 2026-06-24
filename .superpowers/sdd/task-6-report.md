@@ -243,3 +243,14 @@ Result:
 - `src/app/login/page.tsx`
 - `src/app/login/messages.ts`
 - `src/app/login/page.test.ts`
+
+## Expired OTP sign-in path fix
+- Extracted email OTP authorize logic into src/auth/email-otp-sign-in.ts.
+- Expired OTP results now throw a CredentialsSignin subclass with code='expired'.
+- Login server action maps that Auth.js error to /login?status=expired; invalid credentials remain on the generic invalid-code path.
+- Added focused tests for expired vs invalid sign-in mapping.
+- Ran: pnpm test src/auth -> 6 files, 24 tests passed.
+- Ran: pnpm test src/app/login/page.test.ts -> 1 file, 2 tests passed.
+- Ran: pnpm lint -> passed.
+- Ran: pnpm build -> passed.
+

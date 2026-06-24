@@ -5,15 +5,12 @@ import Credentials from "next-auth/providers/credentials";
 
 import { prisma } from "@/lib/db";
 
-import { consumeEmailOtp, normalizeOtp, requestEmailOtp as requestEmailOtpWithStore, type EmailOtpRecord } from "./email-otp-service";
+import { consumeEmailOtp, requestEmailOtp as requestEmailOtpWithStore, type EmailOtpRecord } from "./email-otp-service";
+import { authorizeEmailOtpSignIn } from "./email-otp-sign-in";
 import { resolveAuthRuntimeState } from "./runtime";
 import { wechatProvider } from "./wechat-provider";
 
 export const authRuntimeState = resolveAuthRuntimeState();
-
-function normalizeEmail(value: unknown) {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
 
 async function deliverOtpEmail(email: string, code: string) {
   const endpoint = process.env.EMAIL_OTP_ENDPOINT?.trim();
@@ -98,33 +95,18 @@ const emailOtpProvider = Credentials({
     code: { label: "Verification code", type: "text" },
   },
   async authorize(credentials) {
-    const email = normalizeEmail(credentials?.email);
-    const code = normalizeOtp(credentials?.code);
-
-    if (!email || !code || !authRuntimeState.authAvailable) {
-      return null;
-    }
-
-    const result = await consumeEmailOtp(email, code, {
-      now: Date.now(),
-      store: emailOtpStore,
+    return authorizeEmailOtpSignIn(credentials, {
+      authAvailable: authRuntimeState.authAvailable,
+      consumeOtp: (email, code, { now }) => consumeEmailOtp(email, code, {
+        now,
+        store: emailOtpStore,
+      }),
+      upsertUser: async (email) => prisma.user.upsert({
+        where: { email },
+        update: { email },
+        create: { email },
+      }),
     });
-
-    if (result.status !== "verified") {
-      return null;
-    }
-
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: { email },
-      create: { email },
-    });
-
-    return {
-      id: user.id,
-      email: user.email ?? email,
-      name: user.email ?? email,
-    };
   },
 });
 

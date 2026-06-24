@@ -2,6 +2,7 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authRuntimeState, requestEmailOtp, signIn } from "@/auth/config";
+import { getLoginRedirectForAuthError } from "@/auth/email-otp-sign-in";
 import { AppShell } from "@/components/app-shell";
 
 import { getLoginMessage } from "./messages";
@@ -106,7 +107,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   await signIn("email-otp", formData);
                 } catch (error) {
                   if (error instanceof AuthError) {
-                    redirect(`/login?error=${encodeURIComponent(error.type)}`);
+                    redirect(getLoginRedirectForAuthError(error));
                   }
 
                   throw error;
