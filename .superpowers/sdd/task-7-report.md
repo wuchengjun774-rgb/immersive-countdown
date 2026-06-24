@@ -144,3 +144,13 @@ Result:
 
 1. The route safely falls back from `session.user.id` to `session.user.email`, but if a future auth provider yields neither field then persistence will correctly remain blocked with `401`.
 2. The IndexedDB-backed path is covered indirectly through the shared queue contract and fallback test, not through a browser-native IndexedDB integration test.
+
+## Review fix: default memory queue and idempotency coverage
+- Fixed default enqueueSession fallback so module-level default queue state is shared across calls when IndexedDB is unavailable.
+- Added test coverage for default memory fallback enqueueSession retaining records across calls.
+- Added repository test proving TimerSession upsert uses syncKey with update: {}, preserving idempotent replay semantics.
+- Ran: pnpm test src/features/timer/sync-queue.test.ts -> 1 file, 4 tests passed.
+- Ran: pnpm test src/app/api/timer-sessions/route.test.ts src/lib/session-repository.test.ts -> 2 files, 6 tests passed.
+- Ran: pnpm lint -> passed.
+- Ran: pnpm build -> passed.
+

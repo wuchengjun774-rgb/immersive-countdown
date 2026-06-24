@@ -5,6 +5,8 @@ import {
   createSessionQueue,
   enqueueSession,
   flushSessions,
+  getDefaultSessionQueueForTests,
+  resetDefaultSessionQueueForTests,
   type PendingSession,
 } from "./sync-queue";
 
@@ -31,6 +33,22 @@ describe("flushSessions", () => {
 });
 
 describe("enqueueSession", () => {
+  test("keeps records in the default memory fallback queue across calls", async () => {
+    resetDefaultSessionQueueForTests({ indexedDB: null });
+
+    await enqueueSession(session({ syncKey: "default-a" }));
+    await enqueueSession(session({ syncKey: "default-b", mode: "leisure" }));
+
+    const queue = getDefaultSessionQueueForTests();
+
+    await expect(queue.items()).resolves.toEqual([
+      session({ syncKey: "default-a" }),
+      session({ syncKey: "default-b", mode: "leisure" }),
+    ]);
+
+    resetDefaultSessionQueueForTests();
+  });
+
   test("replaces an existing queued record with the same syncKey", async () => {
     const queue = createMemoryQueue([session({ syncKey: "same", interrupted: false })]);
 

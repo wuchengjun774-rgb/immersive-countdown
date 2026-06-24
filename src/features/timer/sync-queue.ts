@@ -116,7 +116,25 @@ export function createSessionQueue(options: { indexedDB?: IDBFactory | null } = 
   return createMemoryQueue();
 }
 
-export async function enqueueSession(record: PendingSession, queue: Queue = createSessionQueue()) {
+let defaultSessionQueue: Queue | null = null;
+
+function getDefaultSessionQueue() {
+  defaultSessionQueue ??= createSessionQueue();
+
+  return defaultSessionQueue;
+}
+
+export function getDefaultSessionQueueForTests() {
+  return getDefaultSessionQueue();
+}
+
+export function resetDefaultSessionQueueForTests(options?: { indexedDB?: IDBFactory | null }) {
+  defaultSessionQueue = options ? createSessionQueue(options) : null;
+
+  return defaultSessionQueue;
+}
+
+export async function enqueueSession(record: PendingSession, queue: Queue = getDefaultSessionQueue()) {
   await queue.put(record);
 }
 
