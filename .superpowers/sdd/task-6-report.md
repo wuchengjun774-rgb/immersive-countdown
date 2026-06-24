@@ -11,6 +11,9 @@ Worktree: `C:\Users\Lenovo\Documents\安装skill\.worktrees\immersive-countdown`
 - Added Auth.js route handler in `src/app/api/auth/[...nextauth]/route.ts`
 - Added login page with email OTP request/submit actions and WeChat sign-in action in `src/app/login/page.tsx`
 - Added `next-auth@5.0.0-beta.31` and `@auth/prisma-adapter@2.11.2`
+- Expanded `prisma/schema.prisma` for Auth.js Prisma adapter compatibility with database sessions
+- Added a deterministic follow-up Prisma migration for the adapter models and user columns
+- Added an auth-side regression test for the Prisma schema contract
 
 ## Key implementation notes
 
@@ -32,9 +35,9 @@ Worktree: `C:\Users\Lenovo\Documents\安装skill\.worktrees\immersive-countdown`
 
 ## Assumptions
 
-- Task 6 is limited to auth plumbing and page wiring; no Prisma schema expansion for Auth.js adapter tables was added because that was outside the stated ownership scope.
 - External email and WeChat services are not exercised in tests and are intentionally mocked/deferred through inert configuration behavior.
 - The login page is acceptable as a server-action-based auth entry point for the current scope.
+- The installed `@auth/prisma-adapter` runtime only required the standard `Account`, `Session`, and `VerificationToken` models for the present configuration; `Authenticator` was intentionally not added because this task does not enable passkeys/WebAuthn.
 
 ## Commands run
 
@@ -64,13 +67,20 @@ Observed green after implementation:
 ### Required final verification
 
 ```powershell
+$env:Path = 'C:\Users\Lenovo\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;' + $env:Path
 & 'C:\Users\Lenovo\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\pnpm.cmd' test src/auth
 & 'C:\Users\Lenovo\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\pnpm.cmd' lint
 & 'C:\Users\Lenovo\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\pnpm.cmd' build
 ```
 
 Results:
-- `pnpm test src/auth`: PASS (`1` file, `6` tests)
+- `pnpm prisma format`: PASS
+- `pnpm prisma validate`: PASS
+- `pnpm prisma generate`: PASS
+- `pnpm prisma migrate dev --name add-authjs-adapter-models --create-only`: FAIL (`Schema engine error` against the local SQLite datasource in this environment)
+- `pnpm prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --script`: PASS (used to generate deterministic SQL for `prisma/migrations/20260624170600_add_authjs_adapter_models/migration.sql`)
+- `pnpm prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code`: PASS (`No difference detected.` consistency check)
+- `pnpm test src/auth`: PASS (`2` files, `8` tests)
 - `pnpm lint`: PASS
 - `pnpm build`: PASS
 
@@ -82,12 +92,15 @@ Results:
 - `src/auth/wechat-provider.ts`
 - `src/auth/otp.ts`
 - `src/auth/otp.test.ts`
+- `src/auth/prisma-schema.test.ts`
 - `src/app/api/auth/[...nextauth]/route.ts`
 - `src/app/login/page.tsx`
+- `prisma/schema.prisma`
+- `prisma/migrations/20260624170600_add_authjs_adapter_models/migration.sql`
 - `.superpowers/sdd/task-6-report.md`
 
 ## Concerns / follow-up
 
-1. The current Prisma schema in this worktree does not yet define the full Auth.js adapter tables (`Account`, `Session`, `VerificationToken`, and adapter-compatible `User` fields). Build/test pass, but a full production sign-in flow will still need the schema and migration work in a later task.
-2. Email OTP storage is intentionally in-memory for this scoped plumbing task, so codes do not persist across server restarts.
-3. WeChat endpoints and placeholders are wired safely, but real end-to-end WeChat login still depends on approved Open Platform credentials and callback domain setup.
+1. Email OTP storage is intentionally in-memory for this scoped plumbing task, so codes do not persist across server restarts.
+2. WeChat endpoints and placeholders are wired safely, but real end-to-end WeChat login still depends on approved Open Platform credentials and callback domain setup.
+3. `prisma migrate dev` could not create the migration locally because Prisma returned a schema-engine error in this environment, so the committed migration SQL was generated with `prisma migrate diff` instead.
