@@ -28,3 +28,22 @@ Commands and results:
 - pnpm test -> 11 files, 45 tests passed.
 - pnpm lint -> passed.
 - pnpm build -> passed.
+
+---
+
+Task 5 security fix addendum (post-review):
+
+Fix details:
+- Removed caller-controlled `x-user-id` handling from `src/app/api/settings/route.ts`.
+- `GET /api/settings` now always returns `defaultSettings`, `persisted: false`, and `requiresUserIdentity: true`.
+- `PUT /api/settings` still validates the JSON body with `settingsSchema`, returns `400` for invalid payloads, and returns `401` with `Authentication is required to persist settings` for valid payloads because trusted authentication does not exist yet.
+- The route no longer calls Prisma for unauthenticated settings reads or writes, while leaving Prisma schema/client code intact for future authenticated persistence.
+- Updated `src/app/api/settings/route.test.ts` to prove untrusted headers cannot read or persist settings and that Prisma mocks are never called.
+
+Commands and exact results:
+- `pnpm test src/app/api/settings/route.test.ts` (before route fix) -> failed: 1 file failed, 5 tests run, 3 failed, 2 passed. Failures showed GET still treated `x-user-id` as authenticated state and PUT still followed the persistence path.
+- `pnpm test src/app/api/settings/route.test.ts` (after route fix) -> passed: 1 file, 5 tests passed.
+- `pnpm test src/features/settings src/app/api/settings` -> passed: 2 files, 9 tests passed.
+- `pnpm test` -> passed: 11 files, 46 tests passed.
+- `pnpm lint` -> initially returned 1 warning in `src/app/api/settings/route.ts` for unused `_request`; after removing the unused parameter, `pnpm lint` passed cleanly.
+- `pnpm build` -> passed. Next.js production build compiled successfully and included the dynamic `/api/settings` route.

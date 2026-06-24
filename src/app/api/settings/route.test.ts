@@ -39,14 +39,7 @@ describe("/api/settings", () => {
     expect(mockPrisma.userSettings.findUnique).not.toHaveBeenCalled();
   });
 
-  test("loads persisted settings for the requested user", async () => {
-    mockPrisma.userSettings.findUnique.mockResolvedValue({
-      focusMinutes: 45,
-      breakMinutes: 10,
-      rounds: 6,
-      motionBackground: true,
-    });
-
+  test("ignores untrusted x-user-id on GET and never loads persisted settings", async () => {
     const request = new Request("http://localhost/api/settings", {
       headers: {
         "x-user-id": "user-123",
@@ -55,28 +48,21 @@ describe("/api/settings", () => {
 
     const response = await GET(request);
 
-    expect(mockPrisma.userSettings.findUnique).toHaveBeenCalledWith({
-      where: { userId: "user-123" },
-      select: {
-        focusMinutes: true,
-        breakMinutes: true,
-        rounds: true,
-        motionBackground: true,
-      },
-    });
+    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       settings: {
-        focusMinutes: 45,
-        breakMinutes: 10,
-        rounds: 6,
-        motionBackground: true,
+        focusMinutes: 25,
+        breakMinutes: 5,
+        rounds: 4,
+        motionBackground: false,
       },
-      persisted: true,
-      requiresUserIdentity: false,
+      persisted: false,
+      requiresUserIdentity: true,
     });
+    expect(mockPrisma.userSettings.findUnique).not.toHaveBeenCalled();
   });
 
-  test("rejects invalid settings payloads", async () => {
+  test("rejects invalid settings payloads before any persistence attempt", async () => {
     const response = await PUT(
       new Request("http://localhost/api/settings", {
         method: "PUT",
@@ -94,19 +80,14 @@ describe("/api/settings", () => {
     );
 
     expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Invalid settings payload",
+    });
     expect(mockPrisma.user.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.userSettings.findUnique).not.toHaveBeenCalled();
   });
 
-  test("persists valid settings for the requested user", async () => {
-    mockPrisma.user.upsert.mockResolvedValue({
-      settings: {
-        focusMinutes: 50,
-        breakMinutes: 8,
-        rounds: 5,
-        motionBackground: true,
-      },
-    });
-
+  test("rejects valid settings payloads without trusted authentication even when x-user-id is present", async () => {
     const payload = {
       focusMinutes: 50,
       breakMinutes: 8,
@@ -125,37 +106,39 @@ describe("/api/settings", () => {
       }),
     );
 
-    expect(mockPrisma.user.upsert).toHaveBeenCalledWith({
-      where: { id: "user-123" },
-      create: {
-        id: "user-123",
-        settings: {
-          create: payload,
-        },
-      },
-      update: {
-        settings: {
-          upsert: {
-            create: payload,
-            update: payload,
-          },
-        },
-      },
-      select: {
-        settings: {
-          select: {
-            focusMinutes: true,
-            breakMinutes: true,
-            rounds: true,
-            motionBackground: true,
-          },
-        },
-      },
-    });
+    expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({
-      settings: payload,
-      persisted: true,
-      requiresUserIdentity: false,
+      error: "Authentication is required to persist settings",
+      requiresUserIdentity: true,
     });
+    expect(mockPrisma.user.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.userSettings.findUnique).not.toHaveBeenCalled();
+  });
+
+  test("rejects valid settings payloads without trusted authentication when no header is present", async () => {
+    const payload = {
+      focusMinutes: 40,
+      breakMinutes: 10,
+      rounds: 6,
+      motionBackground: true,
+    };
+
+    const response = await PUT(
+      new Request("http://localhost/api/settings", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      error: "Authentication is required to persist settings",
+      requiresUserIdentity: true,
+    });
+    expect(mockPrisma.user.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.userSettings.findUnique).not.toHaveBeenCalled();
   });
 });
