@@ -53,3 +53,12 @@ Added the requested follow-up regression coverage for tab keyboard behavior in `
 
 - Task 4 implementation SHA: `13b3e0cfbf719a1941cec39163f866392463d51c`
 - Task 4 review-fix SHA: `1741a446824504e8f330c6b35a3180753aa267fb`
+
+## MP4 asset fix after re-review
+- Added public/backgrounds/morning-ocean-loop.mp4 so the dynamic ocean background source exists instead of always falling back.
+- Added server-side regression test to assert the required video asset is shipped and non-empty.
+- Verified MP4 header contains ftyp and file size is 829284 bytes.
+- Ran: pnpm test src/app/page.server.test.tsx src/components/ocean-background.test.tsx src/features/timer/timer-face.test.tsx -> 3 files, 13 tests passed.
+- Ran: pnpm test -> 9 files, 37 tests passed.
+- Ran: pnpm build -> Next.js production build passed.
+
