@@ -254,3 +254,12 @@ Result:
 - Ran: pnpm lint -> passed.
 - Ran: pnpm build -> passed.
 
+
+## Credentials-only database-session guard fix
+- Fixed Auth.js unsupported strategy combination: email OTP credentials provider is only registered when WeChat OAuth is also configured, so database sessions are never paired with credentials-only providers.
+- Runtime state now disables email OTP if WeChat credentials are absent, matching the login page fallback/not-configured behavior.
+- Added regression test for production AUTH_SECRET + EMAIL_OTP_ENDPOINT without WeChat credentials: auth remains available, WeChat disabled, email OTP disabled.
+- Ran: pnpm test src/auth -> 6 files, 25 tests passed.
+- Ran: pnpm lint -> passed.
+- Ran: pnpm build -> passed.
+

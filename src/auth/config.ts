@@ -119,7 +119,7 @@ const authConfig: NextAuthConfig = {
   pages: {
     signIn: "/login",
   },
-  providers: [emailOtpProvider, wechatProvider].filter((provider) => provider != null),
+  providers: [authRuntimeState.emailOtpEnabled ? emailOtpProvider : null, wechatProvider].filter((provider) => provider != null),
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);

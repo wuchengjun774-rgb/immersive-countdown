@@ -40,4 +40,16 @@ describe("resolveAuthRuntimeState", () => {
     expect(runtime.emailOtpEnabled).toBe(true);
     expect(runtime.wechatEnabled).toBe(true);
   });
+
+  test("does not enable credentials-only email otp with database sessions", () => {
+    const runtime = resolveAuthRuntimeState({
+      NODE_ENV: "production",
+      AUTH_SECRET: "test-secret",
+      EMAIL_OTP_ENDPOINT: "https://example.com/otp",
+    });
+
+    expect(runtime.authAvailable).toBe(true);
+    expect(runtime.wechatEnabled).toBe(false);
+    expect(runtime.emailOtpEnabled).toBe(false);
+  });
 });
