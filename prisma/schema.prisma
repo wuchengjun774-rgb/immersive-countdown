@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String?        @unique
+  wechatOpenId String?        @unique
+  settings     UserSettings?
+  sessions     TimerSession[]
+  createdAt    DateTime       @default(now())
+}
+
+model UserSettings {
+  id               String  @id @default(cuid())
+  userId           String  @unique
+  focusMinutes     Int     @default(25)
+  breakMinutes     Int     @default(5)
+  rounds           Int     @default(4)
+  motionBackground Boolean @default(false)
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TimerSession {
+  id          String    @id @default(cuid())
+  userId      String
+  mode        String
+  startedAt   DateTime
+  endedAt     DateTime?
+  durationMs  Int
+  interrupted Boolean   @default(false)
+  syncKey     String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
