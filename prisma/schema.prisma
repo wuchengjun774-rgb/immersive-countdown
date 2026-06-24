@@ -75,3 +75,12 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+model EmailOtpChallenge {
+  email      String   @id
+  codeHash   String
+  expiresAt  DateTime
+  lastSentAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

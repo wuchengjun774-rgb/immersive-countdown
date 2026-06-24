@@ -5,38 +5,14 @@ import Credentials from "next-auth/providers/credentials";
 
 import { prisma } from "@/lib/db";
 
-import { canRequestOtp, createOtpCode, hashOtp, isOtpValid, OTP_REQUEST_COOLDOWN_MS } from "./otp";
+import { consumeEmailOtp, normalizeOtp, requestEmailOtp as requestEmailOtpWithStore, type EmailOtpRecord } from "./email-otp-service";
+import { resolveAuthRuntimeState } from "./runtime";
 import { wechatProvider } from "./wechat-provider";
 
-type EmailOtpEntry = {
-  codeHash: string;
-  createdAt: number;
-  lastSentAt: number;
-};
-
-type EmailOtpRequestResult = {
-  delivered: boolean;
-  ok: boolean;
-  normalizedEmail: string;
-  retryAfterMs?: number;
-};
-
-declare global {
-  var emailOtpStore: Map<string, EmailOtpEntry> | undefined;
-}
-
-const emailOtpStore = globalThis.emailOtpStore ?? new Map<string, EmailOtpEntry>();
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.emailOtpStore = emailOtpStore;
-}
+export const authRuntimeState = resolveAuthRuntimeState();
 
 function normalizeEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
-
-function normalizeOtp(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
 }
 
 async function deliverOtpEmail(email: string, code: string) {
@@ -70,43 +46,48 @@ async function deliverOtpEmail(email: string, code: string) {
   return response?.ok ?? false;
 }
 
-export async function requestEmailOtp(rawEmail: unknown, now = Date.now()): Promise<EmailOtpRequestResult> {
-  const normalizedEmail = normalizeEmail(rawEmail);
+const emailOtpStore = {
+  async delete(email: string) {
+    await prisma.emailOtpChallenge.deleteMany({
+      where: { email },
+    });
+  },
+  async getByEmail(email: string): Promise<EmailOtpRecord | null> {
+    const record = await prisma.emailOtpChallenge.findUnique({
+      where: { email },
+    });
 
-  if (!normalizedEmail) {
+    if (!record) {
+      return null;
+    }
+
     return {
-      delivered: false,
-      ok: false,
-      normalizedEmail: "",
+      codeHash: record.codeHash,
+      email: record.email,
+      expiresAt: record.expiresAt,
+      lastSentAt: record.lastSentAt,
     };
-  }
+  },
+  async save(record: EmailOtpRecord) {
+    await prisma.emailOtpChallenge.upsert({
+      where: { email: record.email },
+      update: {
+        codeHash: record.codeHash,
+        expiresAt: record.expiresAt,
+        lastSentAt: record.lastSentAt,
+      },
+      create: record,
+    });
+  },
+};
 
-  const current = emailOtpStore.get(normalizedEmail);
-
-  if (current && !canRequestOtp(current.lastSentAt, now)) {
-    return {
-      delivered: false,
-      ok: false,
-      normalizedEmail,
-      retryAfterMs: OTP_REQUEST_COOLDOWN_MS - (now - current.lastSentAt),
-    };
-  }
-
-  const code = createOtpCode();
-
-  emailOtpStore.set(normalizedEmail, {
-    codeHash: hashOtp(code),
-    createdAt: now,
-    lastSentAt: now,
+export async function requestEmailOtp(rawEmail: unknown, now = Date.now()) {
+  return requestEmailOtpWithStore(rawEmail, {
+    deliverOtpEmail,
+    now,
+    runtime: authRuntimeState,
+    store: emailOtpStore,
   });
-
-  const delivered = await deliverOtpEmail(normalizedEmail, code);
-
-  return {
-    delivered,
-    ok: true,
-    normalizedEmail,
-  };
 }
 
 const emailOtpProvider = Credentials({
@@ -120,17 +101,18 @@ const emailOtpProvider = Credentials({
     const email = normalizeEmail(credentials?.email);
     const code = normalizeOtp(credentials?.code);
 
-    if (!email || !code) {
+    if (!email || !code || !authRuntimeState.authAvailable) {
       return null;
     }
 
-    const record = emailOtpStore.get(email);
+    const result = await consumeEmailOtp(email, code, {
+      now: Date.now(),
+      store: emailOtpStore,
+    });
 
-    if (!record || !isOtpValid(record, code, Date.now())) {
+    if (result.status !== "verified") {
       return null;
     }
-
-    emailOtpStore.delete(email);
 
     const user = await prisma.user.upsert({
       where: { email },
@@ -148,14 +130,14 @@ const emailOtpProvider = Credentials({
 
 const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "development-auth-secret-placeholder",
+  secret: authRuntimeState.secret,
   session: {
     strategy: "database",
   },
   pages: {
     signIn: "/login",
   },
-  providers: [emailOtpProvider, wechatProvider],
+  providers: [emailOtpProvider, wechatProvider].filter((provider) => provider != null),
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);

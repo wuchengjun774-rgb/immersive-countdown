@@ -1,8 +1,10 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { requestEmailOtp, signIn } from "@/auth/config";
+import { authRuntimeState, requestEmailOtp, signIn } from "@/auth/config";
 import { AppShell } from "@/components/app-shell";
+
+import { getLoginMessage } from "./messages";
 
 type LoginPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -14,27 +16,22 @@ function readParam(
   return Array.isArray(value) ? value[0] : value;
 }
 
-function getMessage(status: string | undefined, retryAfterMs: string | undefined) {
-  if (status === "code-sent") {
-    return "If delivery is configured, a one-time code is on its way to your inbox.";
-  }
-
-  if (status === "rate-limited") {
-    const retryInSeconds = retryAfterMs ? Math.ceil(Number(retryAfterMs) / 1_000) : 60;
-
-    return `Please wait about ${retryInSeconds} seconds before requesting another code.`;
-  }
-
-  return "Choose email OTP or WeChat sign-in to sync your focus settings across devices.";
-}
-
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const status = readParam(resolvedSearchParams.status);
   const error = readParam(resolvedSearchParams.error);
   const email = readParam(resolvedSearchParams.email) ?? "";
   const retryAfterMs = readParam(resolvedSearchParams.retryAfterMs);
-  const message = getMessage(status, retryAfterMs);
+  const message = getLoginMessage({ error, retryAfterMs, status });
+  const emailOtpEnabled = authRuntimeState.authAvailable && authRuntimeState.emailOtpEnabled;
+  const wechatEnabled = authRuntimeState.authAvailable && authRuntimeState.wechatEnabled;
+  const showAlert =
+    Boolean(error) ||
+    status === "auth-unavailable" ||
+    status === "delivery-failed" ||
+    status === "expired" ||
+    status === "not-configured" ||
+    status === "rate-limited";
 
   return (
     <AppShell>
@@ -43,9 +40,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <p className="text-xs font-semibold tracking-[0.35em] text-cyan-100/80 uppercase">Account sync</p>
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Sign in to save your countdown world</h2>
           <p className="max-w-2xl text-sm leading-7 text-white/75">{message}</p>
-          {error ? (
+          {showAlert ? (
             <p className="rounded-2xl border border-rose-300/25 bg-rose-950/35 px-4 py-3 text-sm text-rose-100/90">
-              Sign-in failed with: {error}
+              {message}
             </p>
           ) : null}
         </div>
@@ -70,7 +67,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   nextSearchParams.set("email", requestResult.normalizedEmail);
                 }
 
-                nextSearchParams.set("status", requestResult.ok ? "code-sent" : "rate-limited");
+                nextSearchParams.set("status", requestResult.status);
 
                 if (requestResult.retryAfterMs) {
                   nextSearchParams.set("retryAfterMs", String(requestResult.retryAfterMs));
@@ -83,8 +80,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <label className="space-y-2 text-sm text-white/80">
                 <span>Email address</span>
                 <input
-                  className="w-full rounded-2xl border border-white/15 bg-slate-950/45 px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60"
+                  className="w-full rounded-2xl border border-white/15 bg-slate-950/45 px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60 disabled:cursor-not-allowed disabled:opacity-50"
                   defaultValue={email}
+                  disabled={!emailOtpEnabled}
                   name="email"
                   placeholder="you@example.com"
                   required
@@ -92,7 +90,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 />
               </label>
               <button
-                className="rounded-full bg-cyan-200 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-100"
+                className="rounded-full bg-cyan-200 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!emailOtpEnabled}
                 type="submit"
               >
                 Send verification code
@@ -120,7 +119,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 <span>One-time code</span>
                 <input
                   autoComplete="one-time-code"
-                  className="w-full rounded-2xl border border-white/15 bg-slate-950/45 px-4 py-3 text-base tracking-[0.4em] text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60"
+                  className="w-full rounded-2xl border border-white/15 bg-slate-950/45 px-4 py-3 text-base tracking-[0.4em] text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!emailOtpEnabled}
                   inputMode="numeric"
                   maxLength={6}
                   name="code"
@@ -130,7 +130,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 />
               </label>
               <button
-                className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15 sm:col-span-2"
+                className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
+                disabled={!emailOtpEnabled}
                 type="submit"
               >
                 Sign in with email code
@@ -162,7 +163,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               }}
             >
               <button
-                className="flex w-full items-center justify-center rounded-full border border-emerald-300/30 bg-emerald-400/90 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+                className="flex w-full items-center justify-center rounded-full border border-emerald-300/30 bg-emerald-400/90 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!wechatEnabled}
                 type="submit"
               >
                 Continue with WeChat
@@ -170,9 +172,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </form>
 
             <ul className="space-y-2 text-sm leading-6 text-white/65">
-              <li>• Missing production WeChat secrets fall back to inert placeholders so builds stay safe.</li>
-              <li>• No secrets are committed, rendered, or echoed on this page.</li>
-              <li>• Settings sync continues to require authenticated identity before persistence.</li>
+              <li>鈥?Missing production auth secrets disable sign-in instead of falling back to a known shared secret.</li>
+              <li>鈥?WeChat sign-in only turns on when real client credentials are configured for this deployment.</li>
+              <li>鈥?No secrets are committed, rendered, or echoed on this page.</li>
+              <li>鈥?Settings sync continues to require authenticated identity before persistence.</li>
             </ul>
           </div>
         </div>

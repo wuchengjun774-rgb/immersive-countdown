@@ -22,4 +22,11 @@ describe("Auth.js Prisma schema contract", () => {
     expect(schema).toMatch(/model VerificationToken\s*\{/);
     expect(schema).toMatch(/@@unique\(\[identifier,\s*token\]\)/);
   });
+
+  test("persists email otp challenges in prisma instead of process memory", () => {
+    expect(schema).toMatch(/model EmailOtpChallenge\s*\{/);
+    expect(schema).toMatch(/email\s+String\s+@id/);
+    expect(schema).toMatch(/expiresAt\s+DateTime/);
+    expect(schema).toMatch(/lastSentAt\s+DateTime/);
+  });
 });
