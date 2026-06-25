@@ -16,6 +16,8 @@ test("toggles the dynamic background control", () => {
     </AppShell>,
   );
 
+  expect(screen.getByRole("button", { name: "打开音乐抽屉" })).toBeTruthy();
+
   const toggle = screen.getByRole("button", { name: "启用动态背景" });
   expect(toggle.getAttribute("aria-pressed")).toBe("false");
   expect(screen.getByTestId("ocean-background").getAttribute("data-motion-enabled")).toBe("false");
