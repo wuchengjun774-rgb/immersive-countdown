@@ -1,20 +1,24 @@
 import { redirect } from "next/navigation";
 
-import { DELETE as deleteAccount } from "@/app/api/account/route";
 import { auth, signOut } from "@/auth/config";
 import { AppShell } from "@/components/app-shell";
 import { defaultSettings } from "@/features/settings/schema";
+import { deleteAuthenticatedAccount } from "@/lib/account-service";
 
-async function deleteAccountAction() {
+export async function deleteAccountAction() {
   "use server";
 
-  const response = await deleteAccount();
+  const result = await deleteAuthenticatedAccount();
 
-  if (response.status === 200) {
+  if (result.ok) {
     redirect("/login?status=account-deleted");
   }
 
-  redirect("/settings?status=delete-requires-auth");
+  if (result.reason === "unauthenticated") {
+    redirect("/settings?status=delete-requires-auth");
+  }
+
+  redirect("/settings?status=delete-unavailable");
 }
 
 async function signOutAction() {

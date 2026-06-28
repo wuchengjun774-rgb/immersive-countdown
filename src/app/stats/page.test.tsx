@@ -22,7 +22,7 @@ vi.mock("@/lib/session-repository", () => ({
   findUserIdByEmail: vi.fn(),
 }));
 
-import Page from "./page";
+import Page, { formatShortDate } from "./page";
 
 describe("/stats page", () => {
   beforeEach(() => {
@@ -97,5 +97,9 @@ describe("/stats page", () => {
     expect(screen.getByText("Jun 24")).toBeTruthy();
     expect(screen.getByText("10m")).toBeTruthy();
     expect(screen.getByText("Completed rounds")).toBeTruthy();
+  });
+
+  test("keeps stored local-day labels stable for UTC+14 dates", () => {
+    expect(formatShortDate("2026-01-01")).toBe("Jan 1");
   });
 });

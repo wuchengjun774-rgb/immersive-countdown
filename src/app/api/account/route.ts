@@ -1,39 +1,23 @@
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth/config";
-import { prisma } from "@/lib/db";
-import { findUserIdByEmail } from "@/lib/session-repository";
-
-async function resolveAuthenticatedUserId() {
-  const session = await auth();
-  const user = session?.user;
-
-  if (user && "id" in user && typeof user.id === "string" && user.id.length > 0) {
-    return user.id;
-  }
-
-  if (user?.email) {
-    return findUserIdByEmail(user.email);
-  }
-
-  return null;
-}
+import { deleteAuthenticatedAccount } from "@/lib/account-service";
 
 export async function DELETE() {
-  const userId = await resolveAuthenticatedUserId();
+  const result = await deleteAuthenticatedAccount();
 
-  if (!userId) {
+  if (!result.ok && result.reason === "unauthenticated") {
     return NextResponse.json({
       error: "Authentication is required to delete this account",
       requiresUserIdentity: true,
     }, { status: 401 });
   }
 
-  await prisma.user.delete({
-    where: {
-      id: userId,
-    },
-  });
+  if (!result.ok) {
+    return NextResponse.json({
+      error: "Account deletion is temporarily unavailable",
+      retryable: true,
+    }, { status: 503 });
+  }
 
   return NextResponse.json({ deleted: true });
 }

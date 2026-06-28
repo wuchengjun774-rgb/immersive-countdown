@@ -1,8 +1,12 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-const { mockAuth, mockSignOut } = vi.hoisted(() => ({
+const { mockAuth, mockDeleteAuthenticatedAccount, mockRedirect, mockSignOut } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
+  mockDeleteAuthenticatedAccount: vi.fn(),
+  mockRedirect: vi.fn((location: string) => {
+    throw new Error(`REDIRECT:${location}`);
+  }),
   mockSignOut: vi.fn(),
 }));
 
@@ -11,11 +15,15 @@ vi.mock("@/auth/config", () => ({
   signOut: mockSignOut,
 }));
 
-vi.mock("@/app/api/account/route", () => ({
-  DELETE: vi.fn(),
+vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
 }));
 
-import Page from "./page";
+vi.mock("@/lib/account-service", () => ({
+  deleteAuthenticatedAccount: mockDeleteAuthenticatedAccount,
+}));
+
+import Page, { deleteAccountAction } from "./page";
 
 describe("/settings page", () => {
   beforeEach(() => {
@@ -38,5 +46,19 @@ describe("/settings page", () => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Delete personal data" })).toBeTruthy();
     expect(screen.getByText("Preference sync still requires authenticated persistence support.")).toBeTruthy();
+  });
+
+  test("redirects to an explicit safe status when delete requires authentication", async () => {
+    mockDeleteAuthenticatedAccount.mockResolvedValue({ ok: false, reason: "unauthenticated" });
+
+    await expect(deleteAccountAction()).rejects.toThrow("REDIRECT:/settings?status=delete-requires-auth");
+    expect(mockRedirect).toHaveBeenCalledWith("/settings?status=delete-requires-auth");
+  });
+
+  test("redirects to an explicit safe status when delete is temporarily unavailable", async () => {
+    mockDeleteAuthenticatedAccount.mockResolvedValue({ ok: false, reason: "unavailable" });
+
+    await expect(deleteAccountAction()).rejects.toThrow("REDIRECT:/settings?status=delete-unavailable");
+    expect(mockRedirect).toHaveBeenCalledWith("/settings?status=delete-unavailable");
   });
 });

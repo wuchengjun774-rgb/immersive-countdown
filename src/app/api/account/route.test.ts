@@ -105,4 +105,21 @@ describe("/api/account", () => {
       },
     });
   });
+
+  test("returns a safe unavailable response when account deletion cannot complete", async () => {
+    mockAuth.mockRejectedValue(new Error("auth offline"));
+
+    const response = await DELETE(
+      new Request("http://localhost/api/account", {
+        method: "DELETE",
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: "Account deletion is temporarily unavailable",
+      retryable: true,
+    });
+    expect(mockPrismaUserDelete).not.toHaveBeenCalled();
+  });
 });

@@ -51,12 +51,14 @@ function formatDuration(durationMs: number) {
   return `${hours}h ${minutes}m`;
 }
 
-function formatShortDate(date: string, zone: string) {
+export function formatShortDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-    timeZone: zone,
-  }).format(new Date(`${date}T12:00:00.000Z`));
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
 function formatLocalDate(date: Date, zone: string) {
@@ -226,7 +228,7 @@ export default async function Page() {
                   className="grid gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-4 md:grid-cols-[5.5rem_minmax(0,1fr)_4rem_5rem]"
                   key={day.date}
                 >
-                  <span className="text-sm font-medium text-white">{formatShortDate(day.date, zone)}</span>
+                  <span className="text-sm font-medium text-white">{formatShortDate(day.date)}</span>
                   <div aria-hidden="true" className="flex items-center">
                     <div className="h-2.5 w-full rounded-full bg-white/10">
                       <div className="h-2.5 rounded-full bg-cyan-200/85" style={{ width }} />
