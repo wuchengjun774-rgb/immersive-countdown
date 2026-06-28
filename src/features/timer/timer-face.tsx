@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
+import { enqueueSession, flushSessions, type PendingSession } from "./sync-queue";
 import { useCountdown } from "./use-countdown";
 
 type TimerMode = "focus" | "leisure";
@@ -19,10 +20,41 @@ function formatTime(milliseconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function createPendingSession(mode: TimerMode, durationMs: number, remainingMs: number, now = Date.now()): PendingSession {
+  const completedMs = Math.max(0, durationMs - remainingMs);
+
+  return {
+    syncKey: `${mode}-${now}`,
+    mode,
+    startedAt: new Date(now - completedMs).toISOString(),
+    endedAt: new Date(now).toISOString(),
+    durationMs: completedMs,
+    interrupted: false,
+  };
+}
+
+async function sendSession(record: PendingSession) {
+  try {
+    const response = await fetch("/api/timer-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(record),
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 function CountdownDisplay({ mode }: { mode: TimerMode }) {
   const countdown = useCountdown(mode === "focus" ? { mode } : { mode, durationMs: 15 * 60_000 });
+  const [syncStatus, setSyncStatus] = useState("Session records stay local until sync is available.");
+  const [isCompleting, setIsCompleting] = useState(false);
+  const completingRef = useRef(false);
   const isIdle = countdown.timer.status === "idle";
   const isPaused = countdown.timer.status === "paused";
+  const canComplete = countdown.timer.status === "running" || countdown.timer.status === "paused";
   const actionLabel = isIdle ? (mode === "focus" ? "开始专注" : "开始休闲计时") : isPaused ? "恢复" : "暂停";
   const phaseLabel =
     mode === "focus"
@@ -45,6 +77,63 @@ function CountdownDisplay({ mode }: { mode: TimerMode }) {
     countdown.pause();
   };
 
+  const flushQueuedSessions = async () => {
+    let attempted = false;
+    let synced = false;
+
+    await flushSessions(undefined, async (record) => {
+      attempted = true;
+      const acknowledged = await sendSession(record);
+      synced ||= acknowledged;
+      return acknowledged;
+    });
+
+    if (attempted) {
+      setSyncStatus(synced ? "Session record synced." : "Sign in to sync session records.");
+    }
+  };
+
+  useEffect(() => {
+    const flushWhenOnline = () => {
+      void flushQueuedSessions();
+    };
+
+    window.addEventListener("online", flushWhenOnline);
+
+    if (navigator.onLine) {
+      queueMicrotask(() => {
+        void flushQueuedSessions();
+      });
+    }
+
+    return () => window.removeEventListener("online", flushWhenOnline);
+  }, []);
+
+  const completeSession = async () => {
+    if (completingRef.current) return;
+
+    completingRef.current = true;
+    setIsCompleting(true);
+
+    const pendingSession = createPendingSession(mode, countdown.timer.durationMs, countdown.remainingMs);
+
+    countdown.completePhase();
+
+    try {
+      await enqueueSession(pendingSession);
+
+      if (!navigator.onLine) {
+        setSyncStatus("Session saved offline. It will sync when you're back online.");
+        return;
+      }
+
+      await flushQueuedSessions();
+    } finally {
+      completingRef.current = false;
+      setIsCompleting(false);
+    }
+  };
+
   return (
     <>
       <p className="mt-8 text-xs tracking-[0.32em] text-white/65">{phaseLabel}</p>
@@ -57,11 +146,26 @@ function CountdownDisplay({ mode }: { mode: TimerMode }) {
       </output>
       <button
         className="min-w-36 rounded-full border border-white/35 bg-white/10 px-7 py-3 text-sm tracking-[0.2em] backdrop-blur-md transition hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+        data-testid="timer-primary-action"
         onClick={handleAction}
         type="button"
       >
         {actionLabel}
       </button>
+      {canComplete ? (
+        <button
+          className="mt-3 rounded-full border border-cyan-200/35 bg-cyan-100/10 px-5 py-2 text-xs tracking-[0.18em] text-cyan-50 transition hover:bg-cyan-100/20 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-100"
+          data-testid="timer-complete-action"
+          disabled={isCompleting}
+          onClick={() => void completeSession()}
+          type="button"
+        >
+          {isCompleting ? "Ending session..." : "End session"}
+        </button>
+      ) : null}
+      <p className="mt-4 text-xs text-white/60" data-testid="sync-status">
+        {syncStatus}
+      </p>
     </>
   );
 }

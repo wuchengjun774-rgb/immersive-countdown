@@ -138,10 +138,12 @@ export async function enqueueSession(record: PendingSession, queue: Queue = getD
   await queue.put(record);
 }
 
-export async function flushSessions(queue: Queue, send: (r: PendingSession) => Promise<boolean>) {
-  for (const record of await queue.items()) {
+export async function flushSessions(queue: Queue | undefined, send: (r: PendingSession) => Promise<boolean>) {
+  const targetQueue = queue ?? getDefaultSessionQueue();
+
+  for (const record of await targetQueue.items()) {
     if (await send(record)) {
-      await queue.remove(record.syncKey);
+      await targetQueue.remove(record.syncKey);
     }
   }
 }

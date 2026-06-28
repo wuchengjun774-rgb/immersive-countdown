@@ -1,17 +1,30 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+
+const { mockEnqueueSession, mockFlushSessions } = vi.hoisted(() => ({
+  mockEnqueueSession: vi.fn(),
+  mockFlushSessions: vi.fn(),
+}));
+
+vi.mock("./sync-queue", () => ({
+  enqueueSession: mockEnqueueSession,
+  flushSessions: mockFlushSessions,
+}));
 
 import { TimerFace } from "./timer-face";
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(0);
+  mockEnqueueSession.mockResolvedValue(undefined);
+  mockFlushSessions.mockResolvedValue(undefined);
   window.localStorage.clear();
 });
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.clearAllMocks();
   window.localStorage.clear();
 });
 
@@ -43,6 +56,33 @@ test("starts, pauses, and resumes the countdown", () => {
   fireEvent.click(screen.getByRole("button", { name: "恢复" }));
 
   expect(screen.getByRole("button", { name: "暂停" })).toBeTruthy();
+});
+
+test("prevents duplicate session completion while queue persistence is in flight", async () => {
+  let resolveEnqueue!: () => void;
+
+  mockEnqueueSession.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        resolveEnqueue = resolve;
+      }),
+  );
+
+  render(<TimerFace />);
+
+  fireEvent.click(screen.getByTestId("timer-primary-action"));
+
+  const completeButton = screen.getByTestId("timer-complete-action");
+
+  fireEvent.click(completeButton);
+  fireEvent.click(completeButton);
+
+  expect(mockEnqueueSession).toHaveBeenCalledTimes(1);
+  expect(completeButton).toHaveProperty("disabled", true);
+
+  await act(async () => {
+    resolveEnqueue();
+  });
 });
 
 test("supports keyboard navigation and roving focus for tabs", () => {

@@ -8,11 +8,7 @@ import { advanceFocusPhase, defaultFocusConfig } from "./mode-machine";
 
 export type CountdownOptions = { mode: "focus" } | { mode: "leisure"; durationMs: number };
 
-function initialCountdown(options: CountdownOptions): StoredCountdown {
-  const restored =
-    typeof window === "undefined" ? null : loadTimerState(window.localStorage, Date.now());
-  if (restored?.mode === options.mode) return restored;
-
+function createDefaultCountdown(options: CountdownOptions): StoredCountdown {
   if (options.mode === "leisure") {
     return {
       mode: "leisure",
@@ -33,7 +29,10 @@ function initialCountdown(options: CountdownOptions): StoredCountdown {
 }
 
 export function useCountdown(options: CountdownOptions = { mode: "focus" }) {
-  const [state, setState] = useState<StoredCountdown>(() => initialCountdown(options));
+  const optionMode = options.mode;
+  const optionDurationMs = options.mode === "leisure" ? options.durationMs : null;
+  const [state, setState] = useState<StoredCountdown>(() => createDefaultCountdown(options));
+  const [hydrated, setHydrated] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -42,8 +41,34 @@ export function useCountdown(options: CountdownOptions = { mode: "focus" }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      const syncedNow = Date.now();
+      const restored = loadTimerState(window.localStorage, syncedNow);
+      const nextDefault = createDefaultCountdown(
+        optionMode === "leisure"
+          ? { mode: "leisure", durationMs: optionDurationMs ?? 0 }
+          : { mode: "focus" },
+      );
+
+      setNow(syncedNow);
+      setState(restored?.mode === optionMode ? restored : nextDefault);
+      setHydrated(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [optionDurationMs, optionMode]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
     saveTimerState(window.localStorage, state);
-  }, [state]);
+  }, [hydrated, state]);
 
   const startFocus = () => {
     const startedAt = Date.now();
