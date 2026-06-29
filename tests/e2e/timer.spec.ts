@@ -2,6 +2,36 @@ import { expect, test } from "@playwright/test";
 
 const timerStorageKey = "immersive-countdown.timer";
 
+async function readQueuedSessions(page: import("@playwright/test").Page) {
+  return page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("immersive-countdown", 1);
+
+      request.addEventListener("upgradeneeded", () => {
+        const database = request.result;
+
+        if (!database.objectStoreNames.contains("timer-session-sync")) {
+          database.createObjectStore("timer-session-sync", { keyPath: "syncKey" });
+        }
+      });
+      request.addEventListener("success", () => resolve(request.result));
+      request.addEventListener("error", () => reject(request.error ?? new Error("Failed to open IndexedDB")));
+    });
+
+    const transaction = database.transaction("timer-session-sync", "readonly");
+    const records = await new Promise<Array<{ interrupted: boolean }>>((resolve, reject) => {
+      const request = transaction.objectStore("timer-session-sync").getAll();
+
+      request.addEventListener("success", () => resolve(request.result as Array<{ interrupted: boolean }>));
+      request.addEventListener("error", () => reject(request.error ?? new Error("Failed to read sync queue")));
+    });
+
+    database.close();
+
+    return records;
+  });
+}
+
 test("restores an active timer after reload", async ({ page }) => {
   const hydrationMessages: string[] = [];
 
@@ -68,6 +98,34 @@ test("keeps timer controls usable on a mobile viewport", async ({ page }) => {
   await page.getByTestId("timer-primary-action").click();
 
   await expect(page.getByRole("timer")).not.toHaveText("25:00");
+});
+
+test("advances into break and queues a successful session when a focus timer expires naturally", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate((storageKey) => {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        mode: "focus",
+        focusSession: { phase: "focus", round: 1, rounds: 4, done: false },
+        timer: { status: "running", durationMs: 1_500_000, endsAt: Date.now() + 500, remainingOnPauseMs: null },
+      }),
+    );
+  }, timerStorageKey);
+
+  await page.reload();
+
+  await expect(page.getByRole("timer")).toHaveText("05:00");
+  await expect
+    .poll(async () =>
+      page.evaluate((storageKey) => {
+        const raw = window.localStorage.getItem(storageKey);
+
+        return raw ? JSON.parse(raw).focusSession : null;
+      }, timerStorageKey),
+    )
+    .toMatchObject({ phase: "break", round: 1, done: false });
+  await expect.poll(async () => (await readQueuedSessions(page))[0]?.interrupted).toBe(false);
 });
 
 test("falls back to the static ocean background when the loop video errors", async ({ page }) => {

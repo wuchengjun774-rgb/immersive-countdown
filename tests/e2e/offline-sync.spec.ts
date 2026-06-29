@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-async function readQueuedSessionCount(page: import("@playwright/test").Page) {
+async function readQueuedSessions(page: import("@playwright/test").Page) {
   return page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open("immersive-countdown", 1);
@@ -26,7 +26,7 @@ async function readQueuedSessionCount(page: import("@playwright/test").Page) {
 
     database.close();
 
-    return records.length;
+    return records as Array<{ interrupted: boolean }>;
   });
 }
 
@@ -40,7 +40,8 @@ test("queues a completed timer while offline and flushes it after reconnect", as
   await page.getByTestId("timer-complete-action").click();
 
   await expect(page.getByTestId("sync-status")).toHaveText("Session saved offline. It will sync when you're back online.");
-  await expect.poll(() => readQueuedSessionCount(page)).toBe(1);
+  await expect.poll(async () => (await readQueuedSessions(page)).length).toBe(1);
+  await expect.poll(async () => (await readQueuedSessions(page))[0]?.interrupted).toBe(true);
 
   await page.route("**/api/timer-sessions", async (route) => {
     await route.fulfill({
@@ -51,7 +52,7 @@ test("queues a completed timer while offline and flushes it after reconnect", as
   await context.setOffline(false);
 
   await expect(page.getByTestId("sync-status")).toHaveText("Session record synced.");
-  await expect.poll(() => readQueuedSessionCount(page)).toBe(0);
+  await expect.poll(async () => (await readQueuedSessions(page)).length).toBe(0);
 });
 
 test("keeps an authenticated-sync fallback queued when the server requires sign-in", async ({ page }) => {
@@ -61,5 +62,5 @@ test("keeps an authenticated-sync fallback queued when the server requires sign-
   await page.getByTestId("timer-complete-action").click();
 
   await expect(page.getByTestId("sync-status")).toHaveText("Sign in to sync session records.");
-  await expect.poll(() => readQueuedSessionCount(page)).toBe(1);
+  await expect.poll(async () => (await readQueuedSessions(page)).length).toBe(1);
 });

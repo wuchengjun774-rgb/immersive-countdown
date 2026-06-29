@@ -55,6 +55,45 @@ describe("useCountdown", () => {
     expect(result.current.remainingMs).toBe(1_500_000);
   });
 
+  test("automatically advances when a running focus timer reaches zero", async () => {
+    const onComplete = vi.fn();
+    const { result } = renderHook(() => useCountdown({ mode: "focus", onComplete }));
+
+    await flushHydration();
+
+    act(() => {
+      result.current.startFocus();
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1_500_000);
+    });
+
+    expect(result.current.focusSession).toEqual({ phase: "break", round: 1, rounds: 4, done: false });
+    expect(result.current.timer.status).toBe("running");
+    expect(result.current.remainingMs).toBe(300_000);
+    expect(onComplete).toHaveBeenCalledWith({
+      completedAt: 1_500_000,
+      durationMs: 1_500_000,
+      mode: "focus",
+      phase: "focus",
+    });
+  });
+
+  test("automatically completes a leisure timer when it reaches zero", async () => {
+    const { result } = renderHook(() => useCountdown({ mode: "leisure", durationMs: 90_000 }));
+
+    await flushHydration();
+
+    act(() => {
+      result.current.startFocus();
+      vi.advanceTimersByTime(90_000);
+    });
+
+    expect(result.current.timer.status).toBe("completed");
+    expect(result.current.remainingMs).toBe(0);
+  });
+
   test("restores an active timer from localStorage with recalculated remaining time", async () => {
     window.localStorage.setItem(
       TIMER_STORAGE_KEY,
@@ -76,25 +115,32 @@ describe("useCountdown", () => {
     expect(result.current.remainingMs).toBe(1_440_000);
   });
 
-  test("restores expired timers as completed", async () => {
+  test("restores expired focus timers by advancing to the next phase", async () => {
     window.localStorage.setItem(
       TIMER_STORAGE_KEY,
       JSON.stringify({
         mode: "focus",
-        focusSession: { phase: "break", round: 4, rounds: 4, done: false },
-        timer: { status: "running", durationMs: 300_000, endsAt: 300_000, remainingOnPauseMs: null },
+        focusSession: { phase: "focus", round: 2, rounds: 4, done: false },
+        timer: { status: "running", durationMs: 1_500_000, endsAt: 1_500_000, remainingOnPauseMs: null },
       }),
     );
 
-    vi.setSystemTime(500_000);
+    vi.setSystemTime(1_600_000);
+    const onComplete = vi.fn();
 
-    const { result } = renderHook(() => useCountdown());
+    const { result } = renderHook(() => useCountdown({ mode: "focus", onComplete }));
 
     await flushHydration();
 
-    expect(result.current.timer.status).toBe("completed");
-    expect(result.current.remainingMs).toBe(0);
-    expect(result.current.focusSession).toEqual({ phase: "break", round: 4, rounds: 4, done: false });
+    expect(result.current.timer.status).toBe("running");
+    expect(result.current.remainingMs).toBe(300_000);
+    expect(result.current.focusSession).toEqual({ phase: "break", round: 2, rounds: 4, done: false });
+    expect(onComplete).toHaveBeenCalledWith({
+      completedAt: 1_500_000,
+      durationMs: 1_500_000,
+      mode: "focus",
+      phase: "focus",
+    });
   });
 
   test("uses a custom duration in leisure mode without a focus session", async () => {

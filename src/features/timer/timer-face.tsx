@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { enqueueSession, flushSessions, type PendingSession } from "./sync-queue";
-import { useCountdown } from "./use-countdown";
+import { useCountdown, type CountdownCompletion } from "./use-countdown";
 
 type TimerMode = "focus" | "leisure";
 
@@ -20,7 +20,13 @@ function formatTime(milliseconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function createPendingSession(mode: TimerMode, durationMs: number, remainingMs: number, now = Date.now()): PendingSession {
+function createPendingSession(
+  mode: TimerMode,
+  durationMs: number,
+  remainingMs: number,
+  interrupted: boolean,
+  now = Date.now(),
+): PendingSession {
   const completedMs = Math.max(0, durationMs - remainingMs);
 
   return {
@@ -29,7 +35,7 @@ function createPendingSession(mode: TimerMode, durationMs: number, remainingMs: 
     startedAt: new Date(now - completedMs).toISOString(),
     endedAt: new Date(now).toISOString(),
     durationMs: completedMs,
-    interrupted: false,
+    interrupted,
   };
 }
 
@@ -48,36 +54,11 @@ async function sendSession(record: PendingSession) {
 }
 
 function CountdownDisplay({ mode }: { mode: TimerMode }) {
-  const countdown = useCountdown(mode === "focus" ? { mode } : { mode, durationMs: 15 * 60_000 });
   const [syncStatus, setSyncStatus] = useState("Session records stay local until sync is available.");
   const [isCompleting, setIsCompleting] = useState(false);
   const completingRef = useRef(false);
-  const isIdle = countdown.timer.status === "idle";
-  const isPaused = countdown.timer.status === "paused";
-  const canComplete = countdown.timer.status === "running" || countdown.timer.status === "paused";
-  const actionLabel = isIdle ? (mode === "focus" ? "开始专注" : "开始休闲计时") : isPaused ? "恢复" : "暂停";
-  const phaseLabel =
-    mode === "focus"
-      ? countdown.focusSession?.phase === "break"
-        ? "休息时刻"
-        : `第 ${countdown.focusSession?.round ?? 1} 轮专注`
-      : "自由倒计时";
 
-  const handleAction = () => {
-    if (isIdle) {
-      countdown.startFocus();
-      return;
-    }
-
-    if (isPaused) {
-      countdown.resume();
-      return;
-    }
-
-    countdown.pause();
-  };
-
-  const flushQueuedSessions = async () => {
+  const flushQueuedSessions = useCallback(async () => {
     let attempted = false;
     let synced = false;
 
@@ -91,6 +72,61 @@ function CountdownDisplay({ mode }: { mode: TimerMode }) {
     if (attempted) {
       setSyncStatus(synced ? "Session record synced." : "Sign in to sync session records.");
     }
+  }, []);
+
+  const recordNaturalCompletion = useCallback(
+    (completion: CountdownCompletion) => {
+      if (completion.mode !== "focus" || completion.phase !== "focus") return;
+
+      const pendingSession = createPendingSession(
+        completion.mode,
+        completion.durationMs,
+        0,
+        false,
+        completion.completedAt,
+      );
+
+      void enqueueSession(pendingSession).then(() => {
+        if (navigator.onLine) {
+          void flushQueuedSessions();
+          return;
+        }
+
+        setSyncStatus("Session saved offline. It will sync when you're back online.");
+      });
+    },
+    [flushQueuedSessions],
+  );
+
+  const countdown = useCountdown(
+    mode === "focus"
+      ? { mode, onComplete: recordNaturalCompletion }
+      : { mode, durationMs: 15 * 60_000, onComplete: recordNaturalCompletion },
+  );
+  const isIdle = countdown.timer.status === "idle";
+  const isPaused = countdown.timer.status === "paused";
+  const isCompleted = countdown.timer.status === "completed";
+  const canComplete = countdown.timer.status === "running" || countdown.timer.status === "paused";
+  const actionLabel = isIdle || isCompleted ? (mode === "focus" ? "开始专注" : "开始休闲计时") : isPaused ? "恢复" : "暂停";
+  const phaseLabel =
+    mode === "focus"
+      ? countdown.focusSession?.phase === "break"
+        ? "休息时刻"
+        : `第 ${countdown.focusSession?.round ?? 1} 轮专注`
+      : "自由倒计时";
+
+  const handleAction = () => {
+    if (isIdle || isCompleted) {
+      countdown.startFocus();
+      return;
+    }
+
+    if (isPaused) {
+      countdown.resume();
+      return;
+    }
+
+    countdown.pause();
   };
 
   useEffect(() => {
@@ -107,7 +143,7 @@ function CountdownDisplay({ mode }: { mode: TimerMode }) {
     }
 
     return () => window.removeEventListener("online", flushWhenOnline);
-  }, []);
+  }, [flushQueuedSessions]);
 
   const completeSession = async () => {
     if (completingRef.current) return;
@@ -115,7 +151,7 @@ function CountdownDisplay({ mode }: { mode: TimerMode }) {
     completingRef.current = true;
     setIsCompleting(true);
 
-    const pendingSession = createPendingSession(mode, countdown.timer.durationMs, countdown.remainingMs);
+    const pendingSession = createPendingSession(mode, countdown.timer.durationMs, countdown.remainingMs, true);
 
     countdown.completePhase();
 
@@ -154,7 +190,7 @@ function CountdownDisplay({ mode }: { mode: TimerMode }) {
       </button>
       {canComplete ? (
         <button
-          className="mt-3 rounded-full border border-cyan-200/35 bg-cyan-100/10 px-5 py-2 text-xs tracking-[0.18em] text-cyan-50 transition hover:bg-cyan-100/20 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-100"
+          className="mt-3 rounded-full border border-cyan-200/35 bg-cyan-100/10 px-5 py-2 text-xs tracking-[0.18em] text-cyan-50 transition hover:bg-cyan-100/20 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-100 disabled:cursor-wait disabled:opacity-60"
           data-testid="timer-complete-action"
           disabled={isCompleting}
           onClick={() => void completeSession()}

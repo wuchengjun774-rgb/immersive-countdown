@@ -78,11 +78,37 @@ test("prevents duplicate session completion while queue persistence is in flight
   fireEvent.click(completeButton);
 
   expect(mockEnqueueSession).toHaveBeenCalledTimes(1);
+  expect(mockEnqueueSession).toHaveBeenCalledWith(expect.objectContaining({ interrupted: true }));
   expect(completeButton).toHaveProperty("disabled", true);
 
   await act(async () => {
     resolveEnqueue();
   });
+});
+
+test("records natural focus completion as a successful session", async () => {
+  render(<TimerFace />);
+
+  fireEvent.click(screen.getByRole("button", { name: "开始专注" }));
+
+  await act(async () => {
+    vi.advanceTimersByTime(1_500_000);
+  });
+
+  expect(mockEnqueueSession).toHaveBeenCalledWith(expect.objectContaining({ interrupted: false, mode: "focus" }));
+});
+
+test("shows a restart action when a leisure countdown completes", async () => {
+  render(<TimerFace />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "休闲模式" }));
+  fireEvent.click(screen.getByRole("button", { name: "开始休闲计时" }));
+
+  await act(async () => {
+    vi.advanceTimersByTime(15 * 60_000);
+  });
+
+  expect(screen.getByRole("button", { name: "开始休闲计时" })).toBeTruthy();
 });
 
 test("supports keyboard navigation and roving focus for tabs", () => {
