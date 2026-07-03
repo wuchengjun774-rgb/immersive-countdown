@@ -110,6 +110,13 @@ const emailOtpProvider = Credentials({
   },
 });
 
+export function createAuthProviders(runtime: typeof authRuntimeState) {
+  return [
+    runtime.emailOtpEnabled ? emailOtpProvider : null,
+    runtime.wechatEnabled ? wechatProvider : null,
+  ].filter((provider) => provider != null);
+}
+
 const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
   secret: authRuntimeState.secret,
@@ -119,7 +126,7 @@ const authConfig: NextAuthConfig = {
   pages: {
     signIn: "/login",
   },
-  providers: [authRuntimeState.emailOtpEnabled ? emailOtpProvider : null, wechatProvider].filter((provider) => provider != null),
+  providers: createAuthProviders(authRuntimeState),
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);

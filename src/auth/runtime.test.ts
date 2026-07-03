@@ -6,6 +6,8 @@ describe("resolveAuthRuntimeState", () => {
   test("fails closed in production when no auth secret is configured", () => {
     const runtime = resolveAuthRuntimeState({
       NODE_ENV: "production",
+      WECHAT_CLIENT_ID: "wechat-client-id",
+      WECHAT_CLIENT_SECRET: "wechat-client-secret",
     });
 
     expect(runtime.authAvailable).toBe(false);
