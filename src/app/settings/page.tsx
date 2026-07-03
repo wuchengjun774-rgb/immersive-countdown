@@ -58,7 +58,7 @@ export default async function Page() {
           <p className="text-xs font-semibold tracking-[0.35em] text-cyan-100/80 uppercase">Personal controls</p>
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Settings</h2>
           <p className="max-w-3xl text-sm leading-7 text-white/75">
-            Preference sync still requires authenticated persistence support.
+            Preference sync is available after sign-in; this page previews the supported timer defaults.
           </p>
         </div>
 
@@ -116,7 +116,7 @@ export default async function Page() {
             </Field>
 
             <Field
-              description="Music choices stay local to this surface until playback preferences are synced."
+              description="Music choices stay local to this surface while timer defaults sync through the settings API."
               fieldId="music-atmosphere"
               label="Music atmosphere"
             >
@@ -165,7 +165,7 @@ export default async function Page() {
 
             <div className="rounded-[1.25rem] border border-white/8 bg-white/[0.03] p-4 text-sm leading-7 text-white/60">
               <p>Current timer defaults: {defaultSettings.focusMinutes} minute focus, {defaultSettings.breakMinutes} minute break, {defaultSettings.rounds} rounds.</p>
-              <p className="mt-2">Sync for these richer settings is intentionally not implied until the backing API supports them.</p>
+              <p className="mt-2">Authenticated API clients can save these timer defaults for account-level sync.</p>
             </div>
           </section>
         </div>

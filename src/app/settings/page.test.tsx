@@ -45,7 +45,7 @@ describe("/settings page", () => {
     expect(screen.getByLabelText("Music atmosphere")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Delete personal data" })).toBeTruthy();
-    expect(screen.getByText("Preference sync still requires authenticated persistence support.")).toBeTruthy();
+    expect(screen.getByText("Preference sync is available after sign-in; this page previews the supported timer defaults.")).toBeTruthy();
   });
 
   test("redirects to an explicit safe status when delete requires authentication", async () => {

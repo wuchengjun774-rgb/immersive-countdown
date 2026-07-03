@@ -39,7 +39,7 @@ export function resolveAuthRuntimeState(env: NodeJS.ProcessEnv = process.env): A
     authAvailable &&
     Boolean(readTrimmedEnv(env, "WECHAT_CLIENT_ID")) &&
     Boolean(readTrimmedEnv(env, "WECHAT_CLIENT_SECRET"));
-  const emailOtpEnabled = authAvailable && wechatEnabled && Boolean(readTrimmedEnv(env, "EMAIL_OTP_ENDPOINT"));
+  const emailOtpEnabled = authAvailable && Boolean(readTrimmedEnv(env, "EMAIL_OTP_ENDPOINT"));
 
   return {
     authAvailable,
