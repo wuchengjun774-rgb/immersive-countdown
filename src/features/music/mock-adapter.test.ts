@@ -6,8 +6,22 @@ describe("mockMusicAdapter", () => {
   test("returns licensed demo tracks", async () => {
     expect((await mockMusicAdapter.search("海岸"))[0]).toMatchObject({
       title: "海岸钢琴",
-      source: "mock",
+      source: "built-in",
     });
+  });
+
+  test("returns built-in calming tracks by category", async () => {
+    const tracks = await mockMusicAdapter.search("雨");
+
+    expect(tracks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "soft-rain",
+          title: "轻柔雨声",
+          source: "built-in",
+        }),
+      ]),
+    );
   });
 
   test("reports search and playback capabilities", () => {
@@ -17,12 +31,16 @@ describe("mockMusicAdapter", () => {
     });
   });
 
-  test("resolves demo playback URLs with expiry metadata", async () => {
+  test("resolves built-in playback URLs with expiry metadata", async () => {
     const playback = await mockMusicAdapter.resolvePlayback("coast-piano");
 
     expect(playback).toMatchObject({
-      url: "/demo-music/coast-piano.mp3",
+      url: expect.stringMatching(/^data:audio\/wav;base64,/),
     });
     expect(typeof playback?.expiresAt).toBe("number");
+  });
+
+  test("returns null playback for unknown tracks", async () => {
+    await expect(mockMusicAdapter.resolvePlayback("unknown")).resolves.toBeNull();
   });
 });
