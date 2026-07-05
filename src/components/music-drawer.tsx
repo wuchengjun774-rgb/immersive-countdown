@@ -16,17 +16,17 @@ type PlaybackState = {
   url: string | null;
 };
 
-const drawerButtonLabel = "\u6253\u5f00\u97f3\u4e50\u62bd\u5c49";
-const drawerTitle = "\u97f3\u4e50";
-const drawerDescription =
-  "\u5f53\u524d\u4ec5\u63d0\u4f9b mock \u6f14\u793a\u66f2\u76ee\uff0c\u5e73\u53f0\u5f02\u5e38\u4e5f\u4e0d\u4f1a\u5f71\u54cd\u8ba1\u65f6\u3002";
-const closeButtonLabel = "\u5173\u95ed";
-const searchLabel = "\u641c\u7d22\u97f3\u4e50";
-const searchPlaceholder = "\u641c\u7d22\u6f14\u793a\u66f2\u76ee";
-const submitLabel = "\u641c\u7d22";
-const loadingLabel = "\u641c\u7d22\u4e2d\u2026";
+const drawerButtonLabel = "打开音乐抽屉";
+const drawerTitle = "音乐";
+const drawerDescription = "当前提供内置舒缓曲目，音乐异常也不会影响计时。";
+const closeButtonLabel = "关闭";
+const searchLabel = "搜索音乐";
+const searchPlaceholder = "搜索内置曲目，例如海岸、雨、冥想";
+const submitLabel = "搜索";
+const loadingLabel = "搜索中…";
 const fallbackError = "Music search is temporarily unavailable";
 const playbackFallbackError = "Music playback is temporarily unavailable";
+const playbackGestureHint = "音频已准备好，请再点一次播放。";
 
 export function MusicDrawer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -47,6 +47,25 @@ export function MusicDrawer() {
       audioRef.current.volume = volume / 100;
     }
   }, [volume]);
+
+  async function playCurrentAudio(track: Track) {
+    try {
+      await audioRef.current?.play();
+      setPlayback((current) => ({
+        ...current,
+        currentTrack: track,
+        error: null,
+        playing: true,
+      }));
+    } catch {
+      setPlayback((current) => ({
+        ...current,
+        currentTrack: track,
+        error: playbackGestureHint,
+        playing: false,
+      }));
+    }
+  }
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -84,6 +103,11 @@ export function MusicDrawer() {
       return;
     }
 
+    if (playback.currentTrack?.id === track.id && playback.url) {
+      await playCurrentAudio(track);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/music/playback?id=${encodeURIComponent(track.id)}`);
       const payload = (await response.json()) as {
@@ -104,19 +128,12 @@ export function MusicDrawer() {
       setPlayback({
         currentTrack: track,
         error: null,
-        playing: true,
+        playing: false,
         url: payload.playback.url,
       });
 
       window.setTimeout(() => {
-        void audioRef.current?.play().catch(() => {
-          setPlayback({
-            currentTrack: null,
-            error: playbackFallbackError,
-            playing: false,
-            url: null,
-          });
-        });
+        void playCurrentAudio(track);
       }, 0);
     } catch {
       setPlayback({
@@ -148,9 +165,7 @@ export function MusicDrawer() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-sm font-semibold tracking-[0.2em] text-white/90">{drawerTitle}</h2>
-              <p className="mt-2 text-xs text-white/60">
-                {drawerDescription.replace("mock 演示曲目", "内置舒缓曲目")}
-              </p>
+              <p className="mt-2 text-xs text-white/60">{drawerDescription}</p>
             </div>
             <button
               className="rounded-full border border-white/15 px-3 py-1 text-[0.65rem] text-white/70"
@@ -200,32 +215,40 @@ export function MusicDrawer() {
               type="range"
               value={volume}
             />
-            <audio loop onError={() => setPlayback((current) => ({ ...current, error: playbackFallbackError }))} ref={audioRef} src={playback.url ?? undefined}>
-              <track kind="captions" />
-            </audio>
+            <audio
+              loop
+              onError={() => setPlayback((current) => ({ ...current, error: playbackFallbackError }))}
+              ref={audioRef}
+              src={playback.url ?? undefined}
+            />
           </div>
 
           <ul className="mt-4 space-y-3">
-            {results.tracks.map((track) => (
-              <li className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3" key={track.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm text-white">{track.title}</p>
-                  <button
-                    aria-label={`${playback.currentTrack?.id === track.id && playback.playing ? "暂停" : "播放"} ${track.title}`}
-                    className="rounded-full border border-cyan-200/40 px-3 py-1 text-xs text-cyan-50"
-                    onClick={() => void handlePlay(track)}
-                    type="button"
-                  >
-                    {playback.currentTrack?.id === track.id && playback.playing ? "暂停" : "播放"}
-                  </button>
-                </div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-white/60">
-                  <span>{track.artist}</span>
-                  <span aria-hidden="true">\u00b7</span>
-                  <span>{track.source}</span>
-                </div>
-              </li>
-            ))}
+            {results.tracks.map((track) => {
+              const isCurrentTrack = playback.currentTrack?.id === track.id;
+              const buttonVerb = isCurrentTrack && playback.playing ? "暂停" : "播放";
+
+              return (
+                <li className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3" key={track.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm text-white">{track.title}</p>
+                    <button
+                      aria-label={`${buttonVerb} ${track.title}`}
+                      className="rounded-full border border-cyan-200/40 px-3 py-1 text-xs text-cyan-50"
+                      onClick={() => void handlePlay(track)}
+                      type="button"
+                    >
+                      {buttonVerb}
+                    </button>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-white/60">
+                    <span>{track.artist}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{track.source}</span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </aside>
       ) : null}

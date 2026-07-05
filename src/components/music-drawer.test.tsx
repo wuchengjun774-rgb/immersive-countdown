@@ -100,6 +100,16 @@ test("adjusts music volume", async () => {
   expect(volume.value).toBe("35");
 });
 
+test("renders readable built-in music copy and controls", async () => {
+  render(<MusicDrawer />);
+
+  fireEvent.click(screen.getByRole("button", { name: openDrawerLabel }));
+
+  expect(screen.getByText("当前提供内置舒缓曲目，音乐异常也不会影响计时。")).toBeTruthy();
+  expect(screen.getByText("未选择音乐")).toBeTruthy();
+  expect(screen.getByLabelText("音乐音量")).toBeTruthy();
+});
+
 test("shows a non-blocking fallback message when playback fails", async () => {
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const url = String(input);
