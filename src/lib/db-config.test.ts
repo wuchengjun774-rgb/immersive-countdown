@@ -28,9 +28,18 @@ describe("database deployment configuration", () => {
   test("ships the PostgreSQL adapter without the SQLite adapter dependency", () => {
     const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {
       dependencies?: Record<string, string>;
+      scripts?: Record<string, string>;
     };
 
     expect(packageJson.dependencies).not.toHaveProperty("@prisma/adapter-better-sqlite3");
     expect(packageJson.dependencies).toHaveProperty("@prisma/adapter-pg");
+  });
+
+  test("generates the Prisma client and applies migrations during production builds", () => {
+    const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {
+      scripts?: Record<string, string>;
+    };
+
+    expect(packageJson.scripts?.build).toBe("prisma generate && prisma migrate deploy && next build");
   });
 });
