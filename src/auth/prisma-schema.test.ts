@@ -7,6 +7,11 @@ const schemaPath = resolve(process.cwd(), "prisma", "schema.prisma");
 const schema = readFileSync(schemaPath, "utf8");
 
 describe("Auth.js Prisma schema contract", () => {
+  test("targets PostgreSQL for production deployment", () => {
+    expect(schema).toMatch(/provider\s*=\s*"postgresql"/);
+    expect(schema).not.toMatch(/provider\s*=\s*"sqlite"/);
+  });
+
   test("includes the adapter user fields required by auth config", () => {
     expect(schema).toMatch(/model User\s*\{/);
     expect(schema).toMatch(/name\s+String\?/);

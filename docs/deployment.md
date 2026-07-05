@@ -2,10 +2,6 @@
 
 This first release needs these production dependencies configured before public traffic.
 
-> Database release gate: the current preview build is wired to Prisma SQLite with `@prisma/adapter-better-sqlite3`.
-> Production launch on PostgreSQL requires changing the Prisma datasource provider, database adapter, lock file,
-> and migrations before setting a PostgreSQL `DATABASE_URL`.
-
 ## Required services
 
 - PostgreSQL database for Prisma production data.
@@ -16,7 +12,7 @@ This first release needs these production dependencies configured before public 
 
 ## Environment variables
 
-- `DATABASE_URL`: production PostgreSQL connection string after the Prisma PostgreSQL migration gate is complete.
+- `DATABASE_URL`: production PostgreSQL connection string.
 - `AUTH_SECRET`: strong Auth.js secret. Do not rely on development fallback behavior.
 - `EMAIL_OTP_ENDPOINT`: HTTPS endpoint used to deliver email OTP codes.
 - `EMAIL_OTP_API_KEY`: bearer token for the email delivery endpoint, if required.
@@ -33,8 +29,8 @@ This first release needs these production dependencies configured before public 
 
 1. Back up the production database.
 2. Build the release artifact from the reviewed commit.
-3. Switch Prisma from SQLite to PostgreSQL, replace the SQLite adapter, regenerate the Prisma client, and commit the PostgreSQL migration baseline.
-4. Run Prisma migrations against PostgreSQL with the production `DATABASE_URL`.
+3. Set the production `DATABASE_URL`.
+4. Run `pnpm exec prisma migrate deploy` against PostgreSQL.
 5. Verify the Auth.js tables, `UserSettings`, `TimerSession`, and `EmailOtpChallenge` tables exist.
 6. Run a smoke test for login, timer sync, settings, and account deletion.
 
