@@ -23,6 +23,8 @@ describe("database deployment configuration", () => {
 
     expect(configSource).toContain('process.env["DATABASE_URL"]');
     expect(configSource).not.toContain("file:./prisma/dev.db");
+    expect(configSource).not.toContain("throw new Error");
+    expect(configSource).toContain('process.env["DATABASE_URL"] ?? ""');
   });
 
   test("ships the PostgreSQL adapter without the SQLite adapter dependency", () => {
